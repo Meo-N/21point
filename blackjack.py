@@ -1,26 +1,19 @@
-"""支持多人、下注和存档的控制台二十一点游戏。"""
-
 import json
 import os
 import random
-import sys
-from dataclasses import dataclass
-
-
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8")
-
 
 SUITS = ("♠", "♥", "♣", "♦")
 RANKS = ("A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K")
 SAVE_FILE = os.path.join(os.path.dirname(__file__), "blackjack_save.json")
 
 
-@dataclass
 class Card:
-    suit: str
-    rank: str
+    # 创建一张牌，并保存它的花色和牌面。
+    def __init__(self, suit, rank):
+        self.suit = suit
+        self.rank = rank
 
+    # 返回这张牌在二十一点游戏中的基础点数。
     def get_value(self):
         if self.rank == "A":
             return 11
@@ -28,11 +21,13 @@ class Card:
             return 10
         return int(self.rank)
 
+    # 规定打印 Card 对象时显示的文字。
     def __str__(self):
         return self.suit + self.rank
 
 
 class Deck:
+    # 创建标准的 52 张牌，保存统计表，然后洗牌。
     def __init__(self, card_stats):
         self._cards = []
         self.card_stats = card_stats
@@ -43,6 +38,7 @@ class Deck:
 
         random.shuffle(self._cards)
 
+    # 从牌堆发出一张牌，并记录该牌面出现的次数。
     def deal(self):
         if not self._cards:
             raise RuntimeError("牌堆中已经没有牌了")
@@ -52,6 +48,7 @@ class Deck:
         return card
 
 
+# 计算一手牌的最佳点数；需要时会把 A 从 11 点改为 1 点。
 def hand_value(hand):
     total = 0
     aces = 0
@@ -68,6 +65,7 @@ def hand_value(hand):
     return total
 
 
+# 把一手牌转换成适合显示的字符串。
 def format_hand(hand):
     cards = []
     for card in hand:
@@ -75,6 +73,7 @@ def format_hand(hand):
     return "  ".join(cards)
 
 
+# 读取玩家的选择；如果输入无效，就反复询问。
 def ask_choice(prompt, choices):
     while True:
         answer = input(prompt).strip().lower()
@@ -84,6 +83,7 @@ def ask_choice(prompt, choices):
         print("输入无效，请重新选择。")
 
 
+# 读取指定范围内的整数，例如玩家人数或下注金额。
 def ask_number(prompt, minimum, maximum):
     while True:
         answer = input(prompt).strip()
@@ -98,16 +98,19 @@ def ask_number(prompt, minimum, maximum):
         print("请输入", minimum, "到", maximum, "之间的数字。")
 
 
+# 判断两张牌是否正好组成 Blackjack（21 点）。
 def is_blackjack(hand):
     return len(hand) == 2 and hand_value(hand) == 21
 
 
+# 判断两张牌的点数是否相同，从而决定能否分牌。
 def can_split(hand):
     if len(hand) != 2:
         return False
     return hand[0].get_value() == hand[1].get_value()
 
 
+# 根据玩家点数、庄家明牌和筹码情况给出操作建议。
 def strategy_tip(hand, dealer_card, can_double):
     """给出一条容易理解的基础策略提示。"""
 
@@ -125,6 +128,7 @@ def strategy_tip(hand, dealer_card, can_double):
     return "建议：停牌"
 
 
+# 显示庄家和指定玩家的牌面，也可以隐藏庄家的暗牌。
 def show_table(player_name, hands, dealer, hide_dealer):
     print("\n" + "─" * 42)
 
@@ -154,6 +158,7 @@ def show_table(player_name, hands, dealer, hide_dealer):
     print("─" * 42)
 
 
+# 比较玩家与庄家的点数，返回 win、loss 或 draw。
 def determine_result(player_hand, dealer_hand):
     player_total = hand_value(player_hand)
     dealer_total = hand_value(dealer_hand)
@@ -167,6 +172,7 @@ def determine_result(player_hand, dealer_hand):
     return "draw"
 
 
+# 扣除第二份赌注，把一手牌分成两手并分别补牌。
 def split_hand(player, hand_info, deck):
     """把一手牌拆成两手，并补发一张牌。"""
 
@@ -179,6 +185,7 @@ def split_hand(player, hand_info, deck):
     return [first_hand, second_hand]
 
 
+# 处理玩家的一手牌，包括要牌、停牌和加倍。
 def play_one_hand(player, hand_info, dealer, deck, hand_number):
     """让一名玩家操作一手牌。"""
 
@@ -224,6 +231,7 @@ def play_one_hand(player, hand_info, dealer, deck, hand_number):
         print(player["name"], "的手牌", hand_number, "爆牌了！")
 
 
+# 结算一手牌，更新玩家筹码和胜负记录。
 def settle_hand(player, hand_info, dealer):
     result = determine_result(hand_info["cards"], dealer)
     bet = hand_info["bet"]
@@ -240,6 +248,7 @@ def settle_hand(player, hand_info, dealer):
     player["scores"][result] += 1
 
 
+# 庄家是 Blackjack 时，立即结算所有主注和保险。
 def handle_dealer_blackjack(round_players, dealer):
     """庄家是 Blackjack 时立即结算主注和保险。"""
 
@@ -265,6 +274,7 @@ def handle_dealer_blackjack(round_players, dealer):
             print(player["name"], "主注失败。")
 
 
+# 完成一整局游戏：下注、发牌、玩家操作、庄家操作和结算。
 def play_round(players, card_stats):
     deck = Deck(card_stats)
     dealer = []
@@ -365,6 +375,7 @@ def play_round(players, card_stats):
     return True
 
 
+# 显示每种牌面累计出现的次数和百分比。
 def show_card_stats(card_stats):
     total = 0
     for rank in RANKS:
@@ -380,6 +391,7 @@ def show_card_stats(card_stats):
         print(rank.rjust(2), "：", str(count).rjust(3), " 次  ", format(percent, ".1f"), "%", sep="")
 
 
+# 把玩家筹码、战绩和牌面统计保存到 JSON 文件。
 def save_game(players, card_stats):
     data = {"players": players, "card_stats": card_stats}
     with open(SAVE_FILE, "w", encoding="utf-8") as save_file:
@@ -387,6 +399,7 @@ def save_game(players, card_stats):
     print("游戏进度已保存。")
 
 
+# 从 JSON 文件读取上次的游戏进度；读取失败时返回 None。
 def load_game():
     if not os.path.exists(SAVE_FILE):
         return None
@@ -404,6 +417,7 @@ def load_game():
     return data
 
 
+# 询问玩家人数和名字，并给每人创建 1000 个初始筹码。
 def create_players():
     player_count = ask_number("请输入玩家人数（2-4）：", 2, 4)
     players = []
@@ -422,6 +436,7 @@ def create_players():
     return players
 
 
+# 显示所有玩家当前的筹码和胜、负、平记录。
 def show_scores(players):
     print("\n当前战绩：")
     for player in players:
@@ -440,6 +455,7 @@ def show_scores(players):
         )
 
 
+# 程序入口：读取存档、循环游戏，并在退出前保存进度。
 def main():
     print("═" * 42)
     print("          欢迎来到二十一点 Blackjack")
